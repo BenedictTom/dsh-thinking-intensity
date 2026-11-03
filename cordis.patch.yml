@@ -1,0 +1,5 @@
+# Bundle patch: one row that puts this package into the active (Web) composition.
+# The Host half is intentionally empty; the Client half renders the pill.
+- insert:
+    - id: thinking-intensity
+      name: 'dsh-thinking-intensity'

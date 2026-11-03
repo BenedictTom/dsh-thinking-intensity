@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Local scratch
+*.log
+*.bak
+.shots/
