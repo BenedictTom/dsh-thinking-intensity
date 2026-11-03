@@ -26,6 +26,7 @@ window.__ModuleLoader__.load({
 		const MAX_PARTICLES = 200;
 		const LOW_TONE = 0.14;   // 低于此强度：仍保留发射口噪点墙
 		const NS = 'thinking-intensity';
+		const POS_KEY = 'dsh.thinking-intensity.pos';
 
 		/* ---------- 5x7 点阵字模 ---------- */
 		const FONT = {
@@ -75,23 +76,51 @@ window.__ModuleLoader__.load({
 		const DOT_STEP = 2.4;
 		const DOT_R = 0.75;
 
-		/* ---------- 粒子色板：参考图是低饱和灰阶，高强度转白 ---------- */
-		const TONES = [
-			{ low: [176, 184, 191], high: [255, 255, 255] },
-			{ low: [138, 146, 154], high: [212, 221, 227] },
-			{ low: [206, 213, 219], high: [172, 181, 188] },
-		];
 		const mixChannel = (a, b, t) => Math.round(a + (b - a) * t);
 
+		/* ---------- 颜色工具：把主题 token 解析成 canvas 可用的 RGB ---------- */
+		const toRGB = (value, fallback) => {
+			const text = String(value || '').trim();
+			const fn = /rgba?\(([^)]+)\)/i.exec(text);
+			if (fn) {
+				const parts = fn[1].split(/[,\s/]+/).filter(Boolean).map(Number);
+				if (parts.length >= 3 && parts.slice(0, 3).every((n) => Number.isFinite(n))) {
+					return [parts[0], parts[1], parts[2]];
+				}
+			}
+			const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text);
+			if (hex) {
+				const raw = hex[1];
+				const full = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+				return [
+					parseInt(full.slice(0, 2), 16),
+					parseInt(full.slice(2, 4), 16),
+					parseInt(full.slice(4, 6), 16),
+				];
+			}
+			return fallback;
+		};
+		const relativeLum = (rgb) => (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+		const rgbCss = (rgb, alpha) => (typeof alpha === 'number'
+			? 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha + ')'
+			: 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')');
+		const shade = (from, to, t) => {
+			const k = Math.max(0, Math.min(1, t));
+			return [mixChannel(from[0], to[0], k), mixChannel(from[1], to[1], k), mixChannel(from[2], to[2], k)];
+		};
+
 		const CSS = `
-.ti-float{position:absolute;top:-6px;right:10px;transform:translateY(-100%);padding-bottom:0;pointer-events:none}
-.ti-root{display:inline-flex;align-items:center;height:100%;padding:0 2px;user-select:none;-webkit-user-select:none;pointer-events:auto}
+.ti-float{position:absolute;left:0;top:0;width:100%;height:0;pointer-events:none;z-index:4}
+.ti-root{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}
+.ti-probe{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;
+	background-color:var(--dsw-alias-label-primary, rgba(242,248,252,.96))}
 .ti-pill{
 	--ti-k:0;
 	position:relative;
 	width:${PILL_W}px;height:${PILL_H}px;border-radius:${PILL_H / 2}px;
-	background:linear-gradient(180deg, rgba(76,80,84,.94) 0%, rgba(56,59,62,.96) 100%);
-	border:1.5px solid rgba(255,255,255,.22);
+	background-color:var(--dsw-alias-bg-overlay, rgba(56,59,62,.96));
+	background-image:linear-gradient(180deg, rgba(255,255,255,.10) 0%, rgba(0,0,0,.10) 100%);
+	border:1.5px solid var(--dsw-alias-border-l2, rgba(255,255,255,.22));
 	box-shadow:
 		inset 0 1px 0 rgba(255,255,255,.16),
 		inset 0 -6px 12px -8px rgba(0,0,0,.6),
@@ -103,10 +132,18 @@ window.__ModuleLoader__.load({
 	touch-action:none;
 	outline:none;
 }
+.ti-pill[data-scheme="light"]{
+	box-shadow:
+		inset 0 1px 0 rgba(255,255,255,.85),
+		inset 0 -6px 12px -8px rgba(15,20,26,.18),
+		0 6px 16px -10px rgba(15,20,26,.45),
+		0 0 calc(3px + var(--ti-k) * 14px) rgba(18,24,32,calc(var(--ti-k) * .14));
+}
 .ti-pill[data-static="1"]{cursor:default}
-.ti-pill:focus-visible{box-shadow:0 0 0 2px rgba(226,238,246,.55),0 8px 20px -10px rgba(0,0,0,.75)}
-.ti-pill[data-drag="1"]{border-color:rgba(255,255,255,.42)}
-.ti-pill[data-error="1"]{border-color:rgba(255,138,138,.75);box-shadow:0 0 0 1px rgba(255,120,120,.35),0 8px 20px -10px rgba(0,0,0,.75)}
+.ti-pill[data-move="1"]{cursor:grabbing;border-style:dashed}
+.ti-pill:focus-visible{box-shadow:0 0 0 2px var(--dsw-alias-brand-primary, rgba(226,238,246,.55)),0 8px 20px -10px rgba(0,0,0,.6)}
+.ti-pill[data-drag="1"]{border-color:var(--dsw-alias-label-secondary, rgba(255,255,255,.42))}
+.ti-pill[data-error="1"]{border-color:var(--dsw-alias-state-error-primary, rgba(255,138,138,.75));box-shadow:0 0 0 1px rgba(255,120,120,.35),0 8px 20px -10px rgba(0,0,0,.75)}
 .ti-pill[data-pending="1"]{opacity:.82}
 .ti-canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:${PILL_H / 2}px;pointer-events:none}
 .ti-label{position:absolute;left:${PAD_LEFT}px;top:50%;transform:translateY(-50%);pointer-events:none}
@@ -115,7 +152,10 @@ window.__ModuleLoader__.load({
 	background:linear-gradient(180deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.85) 22%,rgba(255,255,255,.85) 78%,rgba(255,255,255,0) 100%);
 	opacity:.3;transition:opacity .16s ease;pointer-events:none;
 }
-.ti-pill:hover .ti-cursor,.ti-pill:focus-visible .ti-cursor,.ti-pill[data-drag="1"] .ti-cursor{opacity:.85}
+.ti-pill[data-scheme="light"] .ti-cursor{
+	background:linear-gradient(180deg,rgba(16,20,26,0) 0%,rgba(16,20,26,.72) 22%,rgba(16,20,26,.72) 78%,rgba(16,20,26,0) 100%);
+}
+.ti-pill:hover .ti-cursor,.ti-pill:focus-visible .ti-cursor,.ti-pill[data-drag="1"] .ti-cursor,.ti-pill[data-move="1"] .ti-cursor{opacity:.85}
 `;
 
 		/* ---------- 点阵绘制：每个亮点都是一颗圆点，不是文字 ---------- */
@@ -245,13 +285,24 @@ window.__ModuleLoader__.load({
 			const [drag, setDrag] = React.useState(null);
 			const [rev, setRev] = React.useState(0);
 			const [failure, setFailure] = React.useState(null);
+			const [scheme, setScheme] = React.useState('dark');
+			const [pos, setPos] = React.useState(null);
+			const [anchorW, setAnchorW] = React.useState(0);
+			const [moving, setMoving] = React.useState(false);
 
 			const rootRef = React.useRef(null);
+			const floatRef = React.useRef(null);
+			const probeRef = React.useRef(null);
 			const canvasRef = React.useRef(null);
 			const textRef = React.useRef(null);
 			const cursorRef = React.useRef(null);
 			const dirRef = React.useRef(null);
 			const dragRef = React.useRef(null);
+			const moveRef = React.useRef(null);
+			const holdRef = React.useRef(0);
+			const tapRef = React.useRef({ t: 0, x: 0, y: 0 });
+			const livePosRef = React.useRef(null);
+			const themeRef = React.useRef({ mode: 'dark', ink: [242, 248, 252] });
 			const labelWRef = React.useRef(42);
 			const levelRef = React.useRef(0);
 			const pendingRef = React.useRef(false);
@@ -277,6 +328,110 @@ window.__ModuleLoader__.load({
 			levelRef.current = level;
 			const label = live ? ladder.labels[Math.min(index, count - 1)] : 'AUTO';
 			const pending = pendingRef.current;
+
+			/* 跟随宿主浅色/深色：读 token 探针的实际颜色判断明暗 */
+			React.useEffect(() => {
+				const read = () => {
+					const probe = probeRef.current;
+					if (!probe) return;
+					let ink = [242, 248, 252];
+					try {
+						ink = toRGB(window.getComputedStyle(probe).backgroundColor, ink);
+					} catch (err) {
+						/* 计算样式不可用时按深色处理 */
+					}
+					// 文字色是亮色 → 深色外观；文字色是暗色 → 浅色外观
+					const mode = relativeLum(ink) > 0.55 ? 'dark' : 'light';
+					themeRef.current = { mode, ink };
+					setScheme((prev) => (prev === mode ? prev : mode));
+				};
+				read();
+				const body = document.body;
+				let observer = null;
+				if (body && typeof MutationObserver === 'function') {
+					observer = new MutationObserver(read);
+					observer.observe(body, {
+						attributes: true,
+						attributeFilter: ['data-ds-dark-theme', 'class', 'style'],
+					});
+				}
+				const mq = typeof window.matchMedia === 'function'
+					? window.matchMedia('(prefers-color-scheme: dark)')
+					: null;
+				if (mq) {
+					if (typeof mq.addEventListener === 'function') mq.addEventListener('change', read);
+					else if (typeof mq.addListener === 'function') mq.addListener(read);
+				}
+				return () => {
+					if (observer) observer.disconnect();
+					if (mq) {
+						if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', read);
+						else if (typeof mq.removeListener === 'function') mq.removeListener(read);
+					}
+				};
+			}, []);
+
+			/* 位置：默认贴 composer 右上角，拖过之后记住相对锚点的偏移 */
+			React.useEffect(() => {
+				let saved = null;
+				try {
+					const raw = window.localStorage.getItem(POS_KEY);
+					if (raw) {
+						const parsed = JSON.parse(raw);
+						if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+							saved = { x: parsed.x, y: parsed.y };
+						}
+					}
+				} catch (err) {
+					saved = null;
+				}
+				if (saved) {
+					livePosRef.current = saved;
+					setPos(saved);
+				}
+				const measure = () => {
+					const el = floatRef.current;
+					if (!el) return;
+					if (el.clientWidth) setAnchorW(el.clientWidth);
+				};
+				measure();
+				if (typeof ResizeObserver === 'function' && floatRef.current) {
+					const ro = new ResizeObserver(measure);
+					ro.observe(floatRef.current);
+					return () => ro.disconnect();
+				}
+				window.addEventListener('resize', measure);
+				return () => window.removeEventListener('resize', measure);
+			}, []);
+
+			const defaultX = anchorW ? Math.max(0, anchorW - PILL_W - 10) : 0;
+			const baseX = pos ? pos.x : defaultX;
+			const baseY = pos ? pos.y : (-PILL_H - 6);
+			const pillX = Math.max(0, Math.min(baseX, anchorW ? Math.max(0, anchorW - PILL_W) : baseX));
+			const pillY = Math.max(-PILL_H - 220, Math.min(baseY, 560));
+
+			const resetPos = () => {
+				try {
+					window.localStorage.removeItem(POS_KEY);
+				} catch (err) {
+					/* 隐私模式忽略 */
+				}
+				livePosRef.current = null;
+				setPos(null);
+			};
+
+			const savePos = (next) => {
+				livePosRef.current = next;
+				setPos(next);
+				try {
+					window.localStorage.setItem(POS_KEY, JSON.stringify({
+						x: Math.round(next.x),
+						y: Math.round(next.y),
+					}));
+				} catch (err) {
+					/* 隐私模式：位置只在本次会话内生效 */
+				}
+			};
 
 			React.useEffect(() => {
 				if (!locale || typeof locale.subscribe !== 'function') return undefined;
@@ -327,14 +482,16 @@ window.__ModuleLoader__.load({
 			React.useEffect(() => {
 				const canvas = textRef.current;
 				if (!canvas) return;
+				const light = themeRef.current.mode === 'light';
+				const ink = themeRef.current.ink;
 				const w = paintDotText(canvas, label, {
-					core: '#e7edf1',
-					head: '#ffffff',
-					glow: 'rgba(226,240,250,0.55)',
+					core: rgbCss(light ? shade(ink, [0, 0, 0], 0.2) : shade(ink, [255, 255, 255], 0.12)),
+					head: light ? 'rgb(10,13,17)' : '#ffffff',
+					glow: light ? 'rgba(12,16,22,0.35)' : 'rgba(226,240,250,0.55)',
 					blur: 4,
 				});
 				labelWRef.current = typeof w === 'number' ? w : 42;
-			}, [label, rev]);
+			}, [label, rev, scheme]);
 
 			React.useEffect(() => () => {
 				if (failTimerRef.current) window.clearTimeout(failTimerRef.current);
@@ -349,13 +506,29 @@ window.__ModuleLoader__.load({
 				const still = typeof window.matchMedia === 'function'
 					&& window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+				// 跟随主题：浅色下层叠改为正常混合，粒子由浅灰渐入近黑
+				const light = themeRef.current.mode === 'light';
+				const ink = themeRef.current.ink;
+				const hot = light ? [12, 16, 22] : [255, 255, 255];
+				const cold = light ? shade(ink, [255, 255, 255], 0.62) : shade(ink, [110, 122, 136], 0.5);
+				const haloHead = light ? '16,20,26' : '232,242,248';
+				const tickColor = light ? '#8b939b' : '#cfd7dc';
+				const noiseColor = light ? '#79828a' : '#c3ccd2';
+				const headDot = light ? '#0a0d11' : '#ffffff';
+				const blend = light ? 'source-over' : 'lighter';
+				const palFor = (k) => [
+					rgbCss(shade(cold, hot, Math.min(1, k))),
+					rgbCss(shade(cold, hot, Math.min(1, k * 0.72))),
+					rgbCss(shade(cold, hot, Math.min(1, k * 0.52))),
+				];
+
 				let g = null;
 				let W = PILL_W;
 				let raf = 0;
 				let last = performance.now();
 				let eased = levelRef.current;
 				let palAt = -1;
-				let pal = TONES.map((tone) => 'rgb(' + tone.low.join(',') + ')');
+				let pal = palFor(0);
 				const ps = [];
 
 				const fieldLeft = () => Math.min(W * 0.62, PAD_LEFT + labelWRef.current + 7);
@@ -401,8 +574,8 @@ window.__ModuleLoader__.load({
 
 					// 发射口柔光
 					const halo = g.createRadialGradient(head, mid, 0, head, mid, 11 + 14 * k);
-					halo.addColorStop(0, 'rgba(232,242,248,' + (0.04 + 0.15 * k).toFixed(3) + ')');
-					halo.addColorStop(1, 'rgba(232,242,248,0)');
+					halo.addColorStop(0, 'rgba(' + haloHead + ',' + (0.04 + 0.15 * k).toFixed(3) + ')');
+					halo.addColorStop(1, 'rgba(' + haloHead + ',0)');
 					g.fillStyle = halo;
 					g.fillRect(0, 0, W, PILL_H);
 
@@ -410,7 +583,7 @@ window.__ModuleLoader__.load({
 					const calm = Math.max(0, 1 - k / LOW_TONE);
 					if (calm > 0.04) {
 						g.globalAlpha = calm * 0.32;
-						g.fillStyle = '#cfd7dc';
+						g.fillStyle = tickColor;
 						const span = right - head;
 						const ticks = [0.42, 0.58, 0.74, 0.9];
 						for (let i = 0; i < ticks.length; i += 1) {
@@ -419,7 +592,7 @@ window.__ModuleLoader__.load({
 							g.fill();
 						}
 						const seedBase = Math.floor(performance.now() / 240);
-						g.fillStyle = '#c3ccd2';
+						g.fillStyle = noiseColor;
 						g.globalAlpha = calm * 0.5;
 						for (let i = 0; i < 18; i += 1) {
 							const seed = (seedBase * 37 + i * 91) % 1000;
@@ -429,7 +602,7 @@ window.__ModuleLoader__.load({
 						}
 					}
 
-					g.globalCompositeOperation = 'lighter';
+					g.globalCompositeOperation = blend;
 					for (let i = 0; i < ps.length; i += 1) {
 						const p = ps[i];
 						const rise = Math.min(1, (1 - p.life) / 0.1);
@@ -451,7 +624,7 @@ window.__ModuleLoader__.load({
 							g.lineTo(p.x - len, p.y);
 							g.stroke();
 							g.globalAlpha = Math.min(1, alpha * 1.25);
-							g.fillStyle = '#ffffff';
+							g.fillStyle = headDot;
 							g.fillRect(p.x - 0.6, p.y - 0.7, 1.2, 1.4);
 						}
 					}
@@ -470,10 +643,7 @@ window.__ModuleLoader__.load({
 
 					if (Math.abs(k - palAt) > 0.05) {
 						palAt = k;
-						pal = TONES.map((tone) => 'rgb('
-							+ mixChannel(tone.low[0], tone.high[0], k) + ','
-							+ mixChannel(tone.low[1], tone.high[1], k) + ','
-							+ mixChannel(tone.low[2], tone.high[2], k) + ')');
+						pal = palFor(k);
 					}
 
 					const endX = fieldEnd(eased);
@@ -528,7 +698,7 @@ window.__ModuleLoader__.load({
 					if (ro) ro.disconnect();
 					ps.length = 0;
 				};
-			}, []);
+			}, [scheme]);
 
 			const flashFailure = (message) => {
 				pendingRef.current = false;
@@ -587,14 +757,42 @@ window.__ModuleLoader__.load({
 				return Math.round(ratio * steps);
 			};
 
+			const beginMove = (event, originX) => {
+				const m = {
+					id: event.pointerId,
+					startX: originX,
+					startY: event.clientY,
+					baseX: pillX,
+					baseY: pillY,
+					moved: false,
+				};
+				moveRef.current = m;
+				setMoving(true);
+			};
+
 			const onPointerDown = (event) => {
-				if (!live) return;
 				if (event.pointerType === 'mouse' && event.button !== 0) return;
 				const root = rootRef.current;
 				if (!root) return;
-				const next = indexFromClientX(event.clientX);
-				dragRef.current = { id: event.pointerId };
-				setDrag({ index: next });
+				dragRef.current = null;
+				moveRef.current = null;
+				if (event.altKey || event.metaKey) {
+					// ⌥/⌘ + 拖动：整颗胶囊换位置
+					beginMove(event, event.clientX);
+				} else if (live) {
+					const next = indexFromClientX(event.clientX);
+					dragRef.current = { id: event.pointerId, startX: event.clientX, moved: false };
+					setDrag({ index: next });
+					// 长按不动 450ms 转为拖动位置，避免和调档抢手势
+					holdRef.current = window.setTimeout(() => {
+						holdRef.current = 0;
+						const held = dragRef.current;
+						if (!held || held.moved) return;
+						dragRef.current = null;
+						setDrag(null);
+						beginMove({ pointerId: held.id, clientY: event.clientY, pointerType: event.pointerType }, held.startX);
+					}, 450);
+				}
 				if (root.setPointerCapture) {
 					try { root.setPointerCapture(event.pointerId); } catch (err) { /* 合成事件无捕获 */ }
 				}
@@ -603,17 +801,55 @@ window.__ModuleLoader__.load({
 			};
 
 			const onPointerMove = (event) => {
+				const move = moveRef.current;
+				if (move && move.id === event.pointerId) {
+					const dx = event.clientX - move.startX;
+					const dy = event.clientY - move.startY;
+					if (!move.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+					move.moved = true;
+					const width = floatRef.current ? floatRef.current.clientWidth : anchorW;
+					const maxX = Math.max(0, (width || anchorW || PILL_W) - PILL_W);
+					const next = {
+						x: Math.max(0, Math.min(maxX, move.baseX + dx)),
+						y: Math.max(-PILL_H - 220, Math.min(560, move.baseY + dy)),
+					};
+					livePosRef.current = next;
+					setPos(next);
+					return;
+				}
 				const current = dragRef.current;
 				if (!current || current.id !== event.pointerId) return;
+				if (!current.moved && Math.abs(event.clientX - current.startX) > 4) {
+					current.moved = true;
+					if (holdRef.current) {
+						window.clearTimeout(holdRef.current);
+						holdRef.current = 0;
+					}
+				}
+				if (!current.moved) return;
 				const next = indexFromClientX(event.clientX);
 				setDrag((prev) => (prev && prev.index === next ? prev : { index: next }));
 			};
 
 			const endDrag = (event) => {
+				if (holdRef.current) {
+					window.clearTimeout(holdRef.current);
+					holdRef.current = 0;
+				}
+				const root = rootRef.current;
+				const move = moveRef.current;
+				if (move && (!event || move.id === event.pointerId)) {
+					moveRef.current = null;
+					setMoving(false);
+					if (root && root.releasePointerCapture) {
+						try { root.releasePointerCapture(move.id); } catch (err) { /* 已释放 */ }
+					}
+					if (move.moved && livePosRef.current) savePos(livePosRef.current);
+					return;
+				}
 				const current = dragRef.current;
 				if (!current) return;
 				dragRef.current = null;
-				const root = rootRef.current;
 				if (root && root.releasePointerCapture) {
 					try { root.releasePointerCapture(current.id); } catch (err) { /* 已释放 */ }
 				}
@@ -621,7 +857,26 @@ window.__ModuleLoader__.load({
 					? indexFromClientX(event.clientX)
 					: (drag ? drag.index : ladder.index);
 				setDrag(null);
+				// 两次轻点（<320ms、几乎不动）= 把胶囊复位到默认位置
+				if (pos && event && typeof event.clientX === 'number' && !current.moved) {
+					const tap = tapRef.current;
+					const now = performance.now();
+					if (tap.t && now - tap.t < 320
+						&& Math.abs(event.clientX - tap.x) < 12
+						&& Math.abs(event.clientY - tap.y) < 12) {
+						tapRef.current = { t: 0, x: 0, y: 0 };
+						resetPos();
+						return;
+					}
+					tapRef.current = { t: now, x: event.clientX, y: event.clientY };
+				}
 				if (next !== ladder.index) commitIndex(next);
+			};
+
+			const onDoubleClick = (event) => {
+				if (!pos) return;
+				event.preventDefault();
+				resetPos();
 			};
 
 			const onKeyDown = (event) => {
@@ -643,16 +898,21 @@ window.__ModuleLoader__.load({
 				commitIndex(target);
 			};
 
-			return h('div', { className: 'ti-float' },
+			return h('div', { ref: floatRef, className: 'ti-float' },
 				h('style', null, CSS),
-				h('div', { className: 'ti-root' },
+				h('div', {
+					className: 'ti-root',
+					style: { transform: 'translate3d(' + pillX.toFixed(1) + 'px,' + pillY.toFixed(1) + 'px,0)' },
+				},
 				h('div', {
 					ref: rootRef,
 					className: 'ti-pill',
 					role: 'slider',
 					tabIndex: live ? 0 : -1,
 					'data-static': live ? '0' : '1',
-					'data-drag': drag !== null ? '1' : '0',
+					'data-scheme': scheme,
+					'data-move': moving ? '1' : '0',
+					'data-drag': drag !== null && !moving ? '1' : '0',
 					'data-error': failure ? '1' : '0',
 					'data-pending': pending ? '1' : '0',
 					'aria-label': t('label', '思考强度'),
@@ -662,13 +922,17 @@ window.__ModuleLoader__.load({
 					'aria-valuemax': steps > 0 ? steps : 0,
 					'aria-valuenow': steps > 0 ? index : 0,
 					'aria-valuetext': failure ? failure : label,
-					title: failure || (live ? label : t('unsupported', '当前模型未提供推理档位')),
+					title: failure || (live
+						? label + ' · ' + t('hint', '⌥ 拖动或长按拖动可移动位置，双击复位')
+						: t('unsupported', '当前模型未提供推理档位')),
 					onPointerDown,
 					onPointerMove,
 					onPointerUp: endDrag,
 					onPointerCancel: endDrag,
+					onDoubleClick,
 					onKeyDown,
 				},
+					h('span', { ref: probeRef, className: 'ti-probe', 'aria-hidden': true }),
 					h('canvas', { ref: canvasRef, className: 'ti-canvas', 'aria-hidden': true }),
 					h('canvas', { ref: textRef, className: 'ti-label', 'aria-hidden': true }),
 					h('div', { ref: cursorRef, className: 'ti-cursor', 'aria-hidden': true })
@@ -682,12 +946,14 @@ window.__ModuleLoader__.load({
 			'thinking-intensity.title': 'Thinking intensity',
 			'thinking-intensity.unsupported': 'This model provides no reasoning levels',
 			'thinking-intensity.busy': 'session in use',
+			'thinking-intensity.hint': 'Alt-drag or long-press to move, double-click to reset',
 		};
 		const DICT_ZH = {
 			'thinking-intensity.label': '思考强度',
 			'thinking-intensity.title': '思考强度',
 			'thinking-intensity.unsupported': '当前模型未提供推理档位',
 			'thinking-intensity.busy': '会话被占用',
+			'thinking-intensity.hint': '按住 ⌥ 拖动或长按拖动可移动位置，双击复位',
 		};
 
 		return {

@@ -12,6 +12,8 @@ Dragging the pill (or pressing arrow keys on it) writes the new effort back to t
 - **Models without a ladder** show `AUTO` and are not draggable — there is nothing to pick.
 - **Keyboard.** `←`/`→` step one level, `Home`/`End` jump to the ends, `Enter`/`Space` toggle between the first and last level. The pill is a `role="slider"` with `aria-valuenow` / `aria-valuetext`.
 - **Failures are visible.** If the session refuses the change (for example while another writer holds the session), the pill shows a red ring and the diagnostic code in its tooltip, then settles back to the real value after ~1.6 s.
+- **Follows the appearance.** The pill reads the harness theme tokens (`--dsw-alias-label-primary`, `--dsw-alias-bg-overlay`, `--dsw-alias-border-l2`) through a hidden probe, so it switches between the dark and light appearance by itself — including a live switch while the page is open. In the light appearance the light bars are drawn dark instead of white, because white bars would be invisible on a light pill.
+- **Movable.** Hold `⌥`/`⌘` (or long-press ~450 ms on touch) and drag the pill anywhere over the composer; the position is remembered per browser in `localStorage`, and two quick taps put it back in the top-right corner. A plain drag still changes the effort, so the slider stays the primary gesture.
 - **Reduced motion.** With `prefers-reduced-motion` the particles stop drifting and the field becomes a still dot matrix.
 - **Locale.** English and Chinese strings are registered through the client locale service.
 
@@ -27,7 +29,7 @@ From the plugin market: search for **Thinking Intensity**.
 Or from a shell:
 
 ```sh
-dsh plugin add lxj5820/dsh-thinking-intensity
+dsh plugin add BenedictTom/dsh-thinking-intensity
 ```
 
 The bundle inserts one row (`thinking-intensity`) into the Web composition. The host half is empty on purpose — all of the behaviour is in the browser bundle, registered on the `conversation.input.overlay` slot.

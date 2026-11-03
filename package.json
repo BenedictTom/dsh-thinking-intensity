@@ -1,9 +1,9 @@
 {
   "name": "dsh-thinking-intensity",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A dot-matrix pill above the composer that reads and writes the session's real reasoning effort, with a particle field that grows and stretches into scan lines as the effort climbs.",
   "license": "MIT",
-  "author": "lxj5820",
+  "author": "BenedictTom",
   "icon": "icon.svg",
   "type": "module",
   "exports": {
@@ -30,11 +30,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lxj5820/dsh-thinking-intensity.git"
+    "url": "git+https://github.com/BenedictTom/dsh-thinking-intensity.git"
   },
-  "homepage": "https://github.com/lxj5820/dsh-thinking-intensity#readme",
+  "homepage": "https://github.com/BenedictTom/dsh-thinking-intensity#readme",
   "bugs": {
-    "url": "https://github.com/lxj5820/dsh-thinking-intensity/issues"
+    "url": "https://github.com/BenedictTom/dsh-thinking-intensity/issues"
   },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
