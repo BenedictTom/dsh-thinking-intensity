@@ -111,7 +111,7 @@ window.__ModuleLoader__.load({
 
 		const CSS = `
 .ti-float{position:absolute;left:0;top:0;width:100%;height:0;pointer-events:none;z-index:4}
-.ti-root{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}
+.ti-root{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform;user-select:none;-webkit-user-select:none}
 .ti-probe{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;
 	background-color:var(--dsw-alias-label-primary, rgba(242,248,252,.96))}
 .ti-pill{
