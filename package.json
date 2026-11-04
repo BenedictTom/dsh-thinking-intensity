@@ -1,33 +1,20 @@
 {
-  "name": "dsh-thinking-intensity",
-  "version": "0.2.0",
-  "description": "A dot-matrix pill above the composer that reads and writes the session's real reasoning effort, with a particle field that grows and stretches into scan lines as the effort climbs.",
-  "license": "MIT",
-  "author": "BenedictTom",
-  "icon": "icon.svg",
-  "type": "module",
-  "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
-    "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
-  },
-  "files": [
-    "index.js",
-    "client.js",
-    "cordis.patch.yml",
-    "locale/*.json",
-    "icon.svg",
-    "README.md",
-    "LICENSE"
-  ],
+  "name": "dsh-thinking-pill",
+  "version": "1.0.0",
+  "description": "Thinking-intensity pill for DeepSeek Harness: dot-matrix effort label and a particle field that turns into horizontal light streaks as reasoning effort rises.",
   "keywords": [
-    "dsh-plugin",
-    "dsh",
+    "deepseek",
     "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
     "reasoning-effort",
-    "ui"
+    "thinking",
+    "model-selector",
+    "slider",
+    "ui",
+    "cordis"
   ],
+  "author": "BenedictTom",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/BenedictTom/dsh-thinking-intensity.git"
@@ -36,12 +23,50 @@
   "bugs": {
     "url": "https://github.com/BenedictTom/dsh-thinking-intensity/issues"
   },
+  "engines": {
+    "node": ">=22.19"
+  },
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "main": "lib/host.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "default": "./lib/host.js"
+    },
+    "./client": {
+      "types": "./lib/client/index.d.ts",
+      "default": "./lib/client/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "icon.svg"
+  ],
+  "scripts": {
+    "check": "node --check lib/host.js && node --check lib/client/index.js"
+  },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
-      "platform": "web",
-      "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-conversation"]
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-model-selection",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-api-remotes"
+      ],
+      "platform": "web"
     }
-  }
+  },
+  "license": "MIT"
 }

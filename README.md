@@ -1,45 +1,40 @@
-# dsh-thinking-intensity
+# dsh-thinking-pill
 
-A pill-shaped thinking-intensity control that floats at the top-right of the DSH composer. A dot-matrix label shows the session's current reasoning effort, and a particle field to its right grows with that effort — sparse floating dots at the low end, dense horizontal scan lines at the high end.
+DeepSeek Harness（DSH）Web Profile 插件：把输入框里的模型入口换成一枚**思考强度胶囊**——左边是用光点画的档位名（`OFF` / `LOW` / `MED` / `HIGH`…），右边是一道随档位铺开的粒子洪流。
 
-Dragging the pill (or pressing arrow keys on it) writes the new effort back to the session, so the next request really is sent at that reasoning effort. It is not a local visual setting.
+## 它做什么
 
-## What it does
+- **档位是真的**：档位表来自当前模型在 DSH 模型目录里公开的 `reasoning.efforts`；拨动后写回会话模型选择（`selectModel`），不是本地装饰。
+- **粒子只铺到当前档位**：流场从发射口径直延伸当前档位所在的圆点，越过即止。
+- **已过档位点不画**：滑过的点和当前点都隐藏，只留尚未到达的档位点；最高档不留任何点。
+- **由疏到密**：整条轨道统一是短横条，左端稀疏离散，越往右条长与密度同步抬升，形成横向光条的数据流。
+- **跟随外观**：按 `body[data-ds-dark-theme]` 取深/浅两套墨色与底色，切换主题即时重绘。
 
-- **Dot-matrix label.** The label is drawn dot by dot on a canvas from a built-in 5×7 font — no webfont, no font file. It shows the effort id in upper case: `OFF`, `LOW`, `MED`, `HIGH`, `XHIGH`, `MAX`, `MIN`.
-- **Particle field.** The field ends where the current effort sits on the model's ladder: the higher the effort, the further right the field reaches. Low effort leaves a short spray of slow, floating dots; high effort stretches every particle into a short horizontal light bar, which reads as a data flood running right.
-- **Real effort.** The pill reads the session's model selection and its `reasoning.efforts` ladder, and writes back through the model directory service. Changing it here is the same as changing it in the model menu.
-- **Models without a ladder** show `AUTO` and are not draggable — there is nothing to pick.
-- **Keyboard.** `←`/`→` step one level, `Home`/`End` jump to the ends, `Enter`/`Space` toggle between the first and last level. The pill is a `role="slider"` with `aria-valuenow` / `aria-valuetext`.
-- **Failures are visible.** If the session refuses the change (for example while another writer holds the session), the pill shows a red ring and the diagnostic code in its tooltip, then settles back to the real value after ~1.6 s.
-- **Follows the appearance.** The pill reads the harness theme tokens (`--dsw-alias-label-primary`, `--dsw-alias-bg-overlay`, `--dsw-alias-border-l2`) through a hidden probe, so it switches between the dark and light appearance by itself — including a live switch while the page is open. In the light appearance the light bars are drawn dark instead of white, because white bars would be invisible on a light pill.
-- **Movable.** Hold `⌥`/`⌘` (or long-press ~450 ms on touch) and drag the pill anywhere over the composer; the position is remembered per browser in `localStorage`, and two quick taps put it back in the top-right corner. A plain drag still changes the effort, so the slider stays the primary gesture.
-- **Reduced motion.** With `prefers-reduced-motion` the particles stop drifting and the field becomes a still dot matrix.
-- **Locale.** English and Chinese strings are registered through the client locale service.
+## 安装
 
-## Requirements
-
-- DeepSeek Harness with client plugin support (the Web GUI).
-- A model whose catalog entry declares reasoning efforts. On DeepSeek Harness' own providers, `deepseek-v4.1-flash` and friends expose `off/low/medium/high`.
-
-## Install
-
-From the plugin market: search for **Thinking Intensity**.
-
-Or from a shell:
+需要已能运行的 DSH web profile（本机验证于 runtime `0.2.1-rc.4`）。
 
 ```sh
 dsh plugin add BenedictTom/dsh-thinking-intensity
 ```
 
-The bundle inserts one row (`thinking-intensity`) into the Web composition. The host half is empty on purpose — all of the behaviour is in the browser bundle, registered on the `conversation.input.overlay` slot.
+本地开发：用 `plugin_manager` 的 `install_bundle` 把本目录装进 profile 即可；本包以 `link:` 形式安装，改完 `lib/` 刷新页面生效。
 
-## Notes
+## 工作原理
 
-- The pill is per session: it follows the session you are looking at, not a global default.
-- It never touches the default model selection — only the current session's.
-- The label, field length and colour ramp are all derived from the ladder index, so a model with two efforts gets a two-step pill and one with five gets five steps.
+- 接管 `conversation.input.model` 座位（`priority: -100`），自绘触发按钮与档位胶囊，替代原生的一行选择器。
+- 走客户端服务 `modelDirectories`：`directoryFor(sessionId).store` 读当前选择与档位表，`.select({ provider, model, reasoningEffort })` 提交；失败（如 `session/writer-held`）会回滚并提示。
+- 指针事件在捕获阶段接管，吸附到最近的档位圆点；松手才提交一次，避免被宿主判定为「点击菜单外部」而收起。
+- 座位外包了一层错误边界：渲染异常只降级成一行提示，不会连带把模型入口弄没。
 
-## License
+## 目录
 
-MIT. See [LICENSE](LICENSE).
+| 路径 | 说明 |
+|---|---|
+| `lib/client/index.js` | 客户端 bundle（构建产物，本仓库直接在此修改） |
+| `lib/host.js` | 宿主半边，空实现（功能全在浏览器侧） |
+| `cordis.patch.yml` | bundle patch，插入 `thinking-pill` 条目 |
+
+## 许可
+
+[MIT](LICENSE)。本仓库基于上游 [HanaAyane/dsh-reasoning-effort](https://github.com/HanaAyane/dsh-reasoning-effort)（MIT © HanaAyane）改造，视觉与交互已重做。

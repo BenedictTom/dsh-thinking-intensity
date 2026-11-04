@@ -1,5 +1,6 @@
-# Bundle patch: one row that puts this package into the active (Web) composition.
-# The Host half is intentionally empty; the Client half renders the pill.
+# dsh-reasoning-effort bundle patch: mounts the plugin into a profile layer stack.
+# Runtime defaults live at the plugin's config boundary. Users override them in
+# their profile patch row with the same id.
 - insert:
-    - id: thinking-intensity
-      name: 'dsh-thinking-intensity'
+    - id: thinking-pill
+      name: 'dsh-thinking-pill'
