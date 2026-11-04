@@ -1,6 +1,6 @@
 {
   "name": "dsh-thinking-pill",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Thinking-intensity pill for DeepSeek Harness: dot-matrix effort label and a particle field that turns into horizontal light streaks as reasoning effort rises.",
   "keywords": [
     "deepseek",
